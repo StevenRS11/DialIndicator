@@ -177,7 +177,7 @@ Timing:
 
 // Set HEARTBEAT_MS to the number of milliseconds to re-issue measurement
 // even if it has not changed.
-#define HEARTBEAT_MS 2000
+#define HEARTBEAT_MS 0
 
 // Toggle Output Pin PORTB4/D12 on ISR.
 // When set to true, will set the output pin to HIGH
@@ -190,6 +190,11 @@ Timing:
 #define INCH_MM_MASK     0x800000   // Bit 23
 #define SIGN_MASK        0x100000   // Bit 20
 #define PACKET_BIT_COUNT 24
+
+const int buttonPin = 13;
+bool need_data=false;
+bool button_state= 0;
+bool prev_button_state= 0;
 
 volatile uint32_t next_bit = 1;  // Shifts left for each bit read from data
 volatile uint8_t bits_read = 0;
@@ -204,7 +209,8 @@ uint32_t prev_data = -1; // Last data bits copied from data variable
 
 void setup() {
   //start serial connection
-  Serial.begin(115200);
+  Serial.begin(9600);
+  pinMode(buttonPin, INPUT);
   /* Debugging output pin for oscilloscope (Digital Pin 12) */
 #if DEBUG_OUTPUT_PIN
   bitSet(DDRB, DDB4); // PORTB4 / D12
@@ -230,15 +236,17 @@ void setup() {
 float measurement = 0.0;
 bool inch_mm = false;
 
-void displayMeasurement() {
+float displayMeasurement() {
   //Serial.print(F("Measurement: "));
   if (inch_mm) {
-    Serial.print(measurement, 4);
+    Serial.print(measurement/10, 4);
     Serial.println(F(" inches"));
+     
   } else {
-    Serial.print(measurement, 2);
+    Serial.print(measurement/10, 2);
     Serial.println(F(" mm"));
   }
+  return measurement/10;
 }
 
 #if HEARTBEAT_MS > 0
@@ -246,6 +254,30 @@ unsigned long last_output_ms = 0;
 #endif
 
 void loop() {
+
+  button_state = digitalRead(buttonPin);
+  if(button_state && !prev_button_state) {
+    need_data=true;
+    prev_button_state = true;
+  }
+  else if(!button_state && prev_button_state){
+        prev_button_state = false;
+
+  }
+
+  if(need_data)
+  {
+    Serial.println(readIndicator(),4);
+    need_data=false;
+  }
+  //delay(50);
+}
+
+
+
+float readIndicator(){
+
+
   uint32_t data_local;  // Local copy of data to process
   bool sign; // Extracted from data, true: positive, false: negative
   
@@ -281,10 +313,10 @@ void loop() {
       if (sign) {
 	measurement = -measurement;
       }
-      displayMeasurement();
+      return displayMeasurement();
+       
     }
   }
-  delay(50);
 }
 
 
