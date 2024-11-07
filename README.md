@@ -10,6 +10,8 @@ dial indicator. However, the same protocol is used for digital
 calipers, tire gauges, micrometers, ...  Generically, these all are
 referred to as a measuring device.
 
+Adding functionality to control stepper motor, load cell, and screen
+
 # TL;DR
 
 ## Parts list
