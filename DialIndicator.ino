@@ -160,6 +160,12 @@ Timing:
        ----DDDD-DDDD-DDDD-DDDD-DDDD-DDDD-------------DDDD-DDDD-DDDD-...
 */
 
+#include "ssd1306.h"
+#include "nano_gfx.h"
+//#include "sova.h"
+
+
+
 
 // Input Pins
 #define INDICATOR_CLOCK 2  // Can only be 2 or 3 on Uno
@@ -208,6 +214,7 @@ uint32_t prev_data = -1; // Last data bits copied from data variable
 
 
 void setup() {
+  //Reader for Dial indicator setup
   //start serial connection
   Serial.begin(9600);
   pinMode(buttonPin, INPUT);
@@ -229,6 +236,29 @@ void setup() {
   bitSet(TCCR2B, CS21);
   bitSet(TCCR2B, CS20);
   bitSet(TIMSK2, TOIE2); // Enable the ISR
+
+  // Screen Setup
+   /* Select the font to use with menu and all font functions */
+    ssd1306_setFixedFont(ssd1306xled_font6x8);
+
+    ssd1306_128x64_i2c_init();
+//    ssd1306_128x64_spi_init(-1, 0, 1);  // Use this line for nano pi (RST not used, 0=CE, gpio1=D/C)
+//    ssd1306_128x64_spi_init(3,4,5);     // Use this line for Atmega328p (3=RST, 4=CE, 5=D/C)
+//    ssd1306_128x64_spi_init(24, 0, 23); // Use this line for Raspberry  (gpio24=RST, 0=CE, gpio23=D/C)
+//    ssd1306_128x64_spi_init(22, 5, 21); // Use this line for ESP32 (VSPI)  (gpio22=RST, gpio5=CE for VSPI, gpio21=D/C)
+//    composite_video_128x64_mono_init(); // Use this line for ESP32 with Composite video support
+
+    ssd1306_clearScreen();
+    textDemo();
+   
+}
+
+void displayText(String str){
+  Serial.println("Printing to screen");
+    ssd1306_setFixedFont(ssd1306xled_font8x16);
+    ssd1306_clearScreen();
+    ssd1306_positiveMode();
+    ssd1306_printFixed(0,  8, str.c_str(), STYLE_NORMAL);
 }
 
 
@@ -267,9 +297,12 @@ void loop() {
 
   if(need_data)
   {
-    Serial.println(readIndicator(),4);
+    //Serial.println(readIndicator(),4);
     need_data=false;
+    displayText(String(readIndicator(),4));
+    
   }
+  //readIndicator();
   //delay(50);
 }
 
