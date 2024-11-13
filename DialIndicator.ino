@@ -248,17 +248,19 @@ void setup() {
 //    ssd1306_128x64_spi_init(22, 5, 21); // Use this line for ESP32 (VSPI)  (gpio22=RST, gpio5=CE for VSPI, gpio21=D/C)
 //    composite_video_128x64_mono_init(); // Use this line for ESP32 with Composite video support
 
-    ssd1306_clearScreen();
-    textDemo();
+    //ssd1306_clearScreen();
+   
    
 }
 
 void displayText(String str){
   Serial.println("Printing to screen");
-    ssd1306_setFixedFont(ssd1306xled_font8x16);
     ssd1306_clearScreen();
     ssd1306_positiveMode();
-    ssd1306_printFixed(0,  8, str.c_str(), STYLE_NORMAL);
+    ssd1306_printFixedN(0,  0, "Deflection:", STYLE_NORMAL,1);
+    ssd1306_printFixedN(0,  20, str.substring(1).c_str(), STYLE_NORMAL,2);
+    ssd1306_printFixedN(40,  50, "inches", STYLE_NORMAL,1);
+
 }
 
 
