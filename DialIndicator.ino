@@ -159,7 +159,7 @@ Timing:
      13ms >|                           |<
        ----DDDD-DDDD-DDDD-DDDD-DDDD-DDDD-------------DDDD-DDDD-DDDD-...
 */
-
+#include "HX711.h"
 #include "ssd1306.h"
 #include "nano_gfx.h"
 //#include "sova.h"
@@ -213,10 +213,25 @@ volatile bool data_ready = false;  // True when data is ready to use
 uint32_t prev_data = -1; // Last data bits copied from data variable
 
 
+HX711 scale;
+const int LOADCELL_DOUT_PIN = 8;
+const int LOADCELL_SCK_PIN = 9;
+
+#define dirPin 6
+#define stepPin 7
+#define stepsPerRevolution 20
+
+#define preloadForce -100000.0
+#define testForce -70000
+
+
 void setup() {
   //Reader for Dial indicator setup
   //start serial connection
   Serial.begin(9600);
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  pinMode(stepPin, OUTPUT);
+  pinMode(dirPin, OUTPUT);
   pinMode(buttonPin, INPUT);
   /* Debugging output pin for oscilloscope (Digital Pin 12) */
 #if DEBUG_OUTPUT_PIN
@@ -252,6 +267,11 @@ void setup() {
    
    
 }
+
+//init for scale
+float currentRead = 0;
+bool hasInit = false;
+
 
 void displayText(String str){
   Serial.println("Printing to screen");
@@ -306,6 +326,44 @@ void loop() {
   }
   //readIndicator();
   //delay(50);
+
+  step();
+}
+
+void step(){
+  
+
+  if(hasInit){
+      currentRead = scale.read();
+        Serial.println(currentRead);
+        if(currentRead <= preloadForce)
+        {
+          for (int i = 0; i < stepsPerRevolution; i++) {
+    // These four lines result in 1 step:
+          digitalWrite(stepPin, HIGH);
+          delayMicroseconds(2000);
+          digitalWrite(stepPin, LOW);
+          delayMicroseconds(2000);
+          }
+         }
+
+  } else if (scale.is_ready()) {
+    scale.set_scale();    
+    Serial.println("Tare... remove any weights from the scale.");
+    delay(5000);
+    scale.tare();
+    Serial.println("Tare done...");
+    Serial.print("Place a known weight on the scale...");
+    delay(5000);
+    long reading = scale.get_units(10);
+    Serial.print("Result: ");
+    Serial.println(reading);
+    hasInit=true;
+  } 
+  else {
+    Serial.println("HX711 not found.");
+    delay(1000);
+  }
 }
 
 
