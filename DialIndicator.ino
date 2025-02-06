@@ -217,12 +217,28 @@ HX711 scale;
 const int LOADCELL_DOUT_PIN = 8;
 const int LOADCELL_SCK_PIN = 9;
 
+const int TOP_LIMIT_PIN = 10;
+const int BOT_LIMIT_PIN = 11;
+
 #define dirPin 6
 #define stepPin 7
-#define stepsPerRevolution 20
+int stepsBetweenReads = 20;
+
+//false for ccw, true for cw
+bool stepDir = false;
 
 #define preloadForce -100000.0
 #define testForce -70000
+
+int ThermistorPin = 0;
+int Vo;
+float R1 = 10000;
+float logR2, R2, T;
+float c1 = 1.009249522e-03, c2 = 2.378405444e-04, c3 = 2.019202697e-07;
+
+const int readTempInterval = 1000;
+int currentMillis = 0;
+int startMillis = 0;
 
 
 void setup() {
@@ -233,10 +249,9 @@ void setup() {
   pinMode(stepPin, OUTPUT);
   pinMode(dirPin, OUTPUT);
   pinMode(buttonPin, INPUT);
-  /* Debugging output pin for oscilloscope (Digital Pin 12) */
-#if DEBUG_OUTPUT_PIN
-  bitSet(DDRB, DDB4); // PORTB4 / D12
-#endif
+  pinMode(TOP_LIMIT_PIN, INPUT_PULLUP );
+  pinMode(BOT_LIMIT_PIN, INPUT_PULLUP );
+
 
   // Prepare the clock and data pins for input
   pinMode(INDICATOR_DATA, INPUT);
@@ -257,15 +272,8 @@ void setup() {
     ssd1306_setFixedFont(ssd1306xled_font6x8);
 
     ssd1306_128x64_i2c_init();
-//    ssd1306_128x64_spi_init(-1, 0, 1);  // Use this line for nano pi (RST not used, 0=CE, gpio1=D/C)
-//    ssd1306_128x64_spi_init(3,4,5);     // Use this line for Atmega328p (3=RST, 4=CE, 5=D/C)
-//    ssd1306_128x64_spi_init(24, 0, 23); // Use this line for Raspberry  (gpio24=RST, 0=CE, gpio23=D/C)
-//    ssd1306_128x64_spi_init(22, 5, 21); // Use this line for ESP32 (VSPI)  (gpio22=RST, gpio5=CE for VSPI, gpio21=D/C)
-//    composite_video_128x64_mono_init(); // Use this line for ESP32 with Composite video support
 
-    //ssd1306_clearScreen();
-   
-   
+//    ssd1306_128x64_spi_init(22, 5, 21); // Use this line for ESP32 (VSPI)  (gpio22=RST, gpio5=CE for VSPI, gpio21=D/C)
 }
 
 //init for scale
@@ -289,7 +297,6 @@ float measurement = 0.0;
 bool inch_mm = false;
 
 float displayMeasurement() {
-  //Serial.print(F("Measurement: "));
   if (inch_mm) {
     Serial.print(measurement/10, 4);
     Serial.println(F(" inches"));
@@ -307,6 +314,14 @@ unsigned long last_output_ms = 0;
 
 void loop() {
 
+  currentMillis = millis();
+
+  if((currentMillis-startMillis)>=readTempInterval)  {
+    //Serial.println();
+    readTemp();
+    startMillis = currentMillis;
+  }
+
   button_state = digitalRead(buttonPin);
   if(button_state && !prev_button_state) {
     need_data=true;
@@ -319,42 +334,74 @@ void loop() {
 
   if(need_data)
   {
-    //Serial.println(readIndicator(),4);
     need_data=false;
-    displayText(String(readIndicator(),4));
-    
+    displayText(String(readIndicator(),4));    
   }
-  //readIndicator();
-  //delay(50);
-
   step();
 }
 
+bool checkLimits(){
+  return !digitalRead(TOP_LIMIT_PIN) || !digitalRead(BOT_LIMIT_PIN);
+}
+
+void getDir(){
+  stepDir =  (!digitalRead(TOP_LIMIT_PIN) && digitalRead(BOT_LIMIT_PIN));
+}
+
+int readTemp(){
+  Vo = analogRead(ThermistorPin);
+  R2 = R1 * (1023.0 / (float)Vo - 1.0);
+  logR2 = log(R2);
+  T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2));
+  T = T - 273.15;
+  T = (T * 9.0)/ 5.0 + 32.0; 
+
+  Serial.print("Temperature: "); 
+  Serial.print(T);
+  Serial.println(" F"); 
+
+
+}
+
+
 void step(){
-  
 
   if(hasInit){
-      currentRead = scale.read();
-        Serial.println(currentRead);
-        if(currentRead <= preloadForce)
-        {
-          for (int i = 0; i < stepsPerRevolution; i++) {
-    // These four lines result in 1 step:
-          digitalWrite(stepPin, HIGH);
-          delayMicroseconds(2000);
-          digitalWrite(stepPin, LOW);
-          delayMicroseconds(2000);
-          }
-         }
+
+    if(checkLimits()){
+      Serial.println("Checking Dir");
+      getDir();
+      digitalWrite(dirPin, stepDir);
+
+    }
+   
+   
+    currentRead = scale.read();
+    //Serial.println(currentRead);
+     
+      digitalWrite(dirPin, stepDir);
+
+    if(currentRead <= preloadForce){
+      for (int i = 0; i < stepsBetweenReads; i++) {
+// These four lines result in 1 step:
+        digitalWrite(stepPin, HIGH);
+        delayMicroseconds(2000);
+        digitalWrite(stepPin, LOW);
+        delayMicroseconds(2000);
+        }  
+      }
+      else{
+        need_data = true;
+      }
 
   } else if (scale.is_ready()) {
     scale.set_scale();    
     Serial.println("Tare... remove any weights from the scale.");
-    delay(5000);
+    delay(500);
     scale.tare();
     Serial.println("Tare done...");
     Serial.print("Place a known weight on the scale...");
-    delay(5000);
+    delay(500);
     long reading = scale.get_units(10);
     Serial.print("Result: ");
     Serial.println(reading);
